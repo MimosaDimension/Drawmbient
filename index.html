@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Drawmbient — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-dark:#14120f;
+    --bg-dark-2:#1c1a16;
+    --paper:#f1ead9;
+    --paper-shadow:#00000030;
+    --ink:#ede6da;
+    --ink-dim:#a79c8a;
+    --accent:#b4744f;
+    --accent-2:#c9a227;
+    --line:#2c281f;
+  }
+
+  *{box-sizing:border-box;}
+
+  html,body{
+    margin:0;
+    padding:0;
+    height:100%;
+    background:var(--bg-dark);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  #app{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+  }
+
+  header{
+    flex:0 0 auto;
+    padding:14px 20px 6px;
+    text-align:center;
+  }
+
+  header h1{
+    font-family:"Fraunces",serif;
+    font-weight:500;
+    font-size:clamp(20px,4vw,28px);
+    margin:0;
+    letter-spacing:0.01em;
+  }
+
+  header p{
+    margin:4px 0 0;
+    font-size:12.5px;
+    color:var(--ink-dim);
+  }
+
+  #canvas-wrap{
+    flex:1 1 auto;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:10px 16px;
+    min-height:0;
+  }
+
+  #canvas-frame{
+    position:relative;
+    width:100%;
+    height:100%;
+    max-width:1000px;
+    background:var(--paper);
+    border-radius:6px;
+    box-shadow:0 20px 50px var(--paper-shadow), inset 0 0 0 1px #00000015;
+    overflow:hidden;
+  }
+
+  #draw-canvas{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    touch-action:none;
+    cursor:none;
+  }
+
+  #cursor-dot{
+    position:absolute;
+    pointer-events:none;
+    border-radius:50%;
+    border:1.5px solid var(--accent);
+    transform:translate(-50%,-50%);
+    opacity:0;
+    transition:opacity .15s ease;
+    z-index:5;
+  }
+
+  #start-overlay{
+    position:absolute;
+    inset:0;
+    background:rgba(20,18,15,0.88);
+    color:var(--ink);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    text-align:center;
+    padding:24px;
+    z-index:10;
+  }
+
+  #start-overlay p{
+    max-width:340px;
+    font-size:13.5px;
+    line-height:1.5;
+    color:var(--ink-dim);
+    margin:0;
+  }
+
+  .primary-btn{
+    font-family:"Fraunces",serif;
+    font-size:16px;
+    font-weight:500;
+    background:var(--accent);
+    color:#14120f;
+    border:none;
+    padding:12px 26px;
+    border-radius:100px;
+    cursor:pointer;
+  }
+
+  .primary-btn:active{transform:scale(0.97);}
+
+  footer{
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:22px;
+    flex-wrap:wrap;
+    padding:12px 16px 16px;
+    background:var(--bg-dark-2);
+    border-top:1px solid var(--line);
+  }
+
+  .control-group{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+
+  .tool-btn{
+    width:36px;
+    height:36px;
+    border-radius:50%;
+    border:1.5px solid var(--line);
+    background:transparent;
+    color:var(--ink-dim);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+
+  .tool-btn.active{
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+
+  .tool-btn svg{width:16px;height:16px;}
+
+  #size-range{
+    width:100px;
+    accent-color:var(--accent);
+  }
+
+  .swatch{
+    width:22px;
+    height:22px;
+    border-radius:50%;
+    border:2px solid transparent;
+    cursor:pointer;
+    padding:0;
+  }
+
+  .swatch.active{
+    border-color:var(--ink);
+  }
+
+  #clear-btn{
+    font-size:12.5px;
+    color:var(--ink-dim);
+    background:transparent;
+    border:1px solid var(--line);
+    padding:8px 14px;
+    border-radius:100px;
+    cursor:pointer;
+  }
+
+  #clear-btn:hover{color:var(--ink);border-color:var(--ink-dim);}
+
+  @media (max-width:520px){
+    footer{gap:14px;padding:10px 10px 14px;}
+    #size-range{width:70px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <header>
+    <h1>Drawmbient</h1>
+    <p>Paint with colour, listen to what grows</p>
+  </header>
+
+  <div id="canvas-wrap">
+    <div id="canvas-frame">
+      <canvas id="draw-canvas"></canvas>
+      <div id="cursor-dot"></div>
+
+      <div id="start-overlay">
+        <p>Four colours, four looping tracks. The more of a colour on the page, the louder its track — and where it sits left or right decides where you hear it.</p>
+        <button class="primary-btn" id="start-btn">Start listening</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="control-group" id="tool-group">
+      <button class="tool-btn active" data-tool="brush" title="Brush">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20l3-1 9-9-2-2-9 9-1 3z"/><path d="M14 8l2-2 2 2-2 2"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="eraser" title="Eraser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 15l8-8 5 5-8 8H9l-3-3z"/><path d="M9 20H4"/></svg>
+      </button>
+    </div>
+
+    <div class="control-group">
+      <label for="size-range" style="font-size:12px;color:var(--ink-dim);">Size</label>
+      <input type="range" id="size-range" min="4" max="70" value="26">
+    </div>
+
+    <div class="control-group" id="palette-group"></div>
+
+    <button id="clear-btn">Clear canvas</button>
+  </footer>
+
+</div>
+
+<script>
+/* ---------------------------------------------------------
+   CONFIG
+   Здесь описана тестовая палитра: 4 цвета + 4 файла-лупа.
+   Позже сюда добавятся остальные палитры (по 21 цвету).
+   Файлы аудио ожидаются в папке /audio рядом с index.html.
+--------------------------------------------------------- */
+const TRACKS = [
+  { color: '#3a6b63', file: 'audio/color1.mp3', maxVolume: 0.7 },
+  { color: '#b4744f', file: 'audio/color2.mp3', maxVolume: 0.7 },
+  { color: '#8a6bae', file: 'audio/color3.mp3', maxVolume: 0.7 },
+  { color: '#c9a227', file: 'audio/color4.mp3', maxVolume: 0.7 }
+];
+
+// При каком проценте покрытия холста цвет достигает своей максимальной громкости
+const VOLUME_FULL_AT_PERCENT = 0.22; // 22%
+
+// Насколько плавно меняются громкость и панорама (в секундах) — чтобы не было щелчков
+const SMOOTHING_TIME = 0.35;
+
+/* ---------------------------------------------------------
+   CANVAS SETUP
+--------------------------------------------------------- */
+const frame = document.getElementById('canvas-frame');
+const canvas = document.getElementById('draw-canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const cursorDot = document.getElementById('cursor-dot');
+
+let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+function resizeCanvas(){
+  const rect = frame.getBoundingClientRect();
+  const oldW = canvas.width, oldH = canvas.height;
+
+  // сохраняем текущий рисунок, чтобы при повороте экрана он не пропадал
+  let snapshot = null;
+  if (oldW > 0 && oldH > 0) {
+    snapshot = document.createElement('canvas');
+    snapshot.width = oldW;
+    snapshot.height = oldH;
+    snapshot.getContext('2d').drawImage(canvas, 0, 0);
+  }
+
+  dpr = Math.max(1, window.devicePixelRatio || 1);
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  if (snapshot) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(snapshot, 0, 0, oldW, oldH, 0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.restore();
+  }
+}
+
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 200));
+resizeCanvas();
+
+/* ---------------------------------------------------------
+   DRAWING
+--------------------------------------------------------- */
+let currentTool = 'brush';
+let currentColor = TRACKS[0].color;
+let brushSize = parseInt(document.getElementById('size-range').value, 10);
+let drawing = false;
+let lastX = 0, lastY = 0;
+
+function setTool(tool){
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tool === tool);
+  });
+}
+
+document.getElementById('tool-group').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tool-btn');
+  if (!btn) return;
+  setTool(btn.dataset.tool);
+});
+
+document.getElementById('size-range').addEventListener('input', (e) => {
+  brushSize = parseInt(e.target.value, 10);
+  updateCursorSize();
+});
+
+// строим палитру-переключатель под холстом (для выбора цвета кисти)
+const paletteGroup = document.getElementById('palette-group');
+TRACKS.forEach((t, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'swatch' + (i === 0 ? ' active' : '');
+  btn.style.background = t.color;
+  btn.addEventListener('click', () => {
+    currentColor = t.color;
+    setTool('brush');
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  paletteGroup.appendChild(btn);
+});
+
+function updateCursorSize(){
+  cursorDot.style.width = brushSize + 'px';
+  cursorDot.style.height = brushSize + 'px';
+}
+updateCursorSize();
+
+function getPos(e){
+  const rect = canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function strokeAt(x, y, lx, ly){
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = brushSize;
+
+  if (currentTool === 'eraser') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = currentColor;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(lx, ly);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  drawing = true;
+  const p = getPos(e);
+  lastX = p.x; lastY = p.y;
+  strokeAt(p.x, p.y, p.x - 0.1, p.y - 0.1);
+  canvas.setPointerCapture(e.pointerId);
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  const p = getPos(e);
+  cursorDot.style.left = p.x + 'px';
+  cursorDot.style.top = p.y + 'px';
+  cursorDot.style.opacity = 1;
+  cursorDot.style.borderColor = currentTool === 'eraser' ? 'var(--ink-dim)' : currentColor;
+
+  if (!drawing) return;
+  strokeAt(p.x, p.y, lastX, lastY);
+  lastX = p.x; lastY = p.y;
+});
+
+canvas.addEventListener('pointerup', () => drawing = false);
+canvas.addEventListener('pointerleave', () => { drawing = false; cursorDot.style.opacity = 0; });
+canvas.addEventListener('pointercancel', () => drawing = false);
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+});
+
+/* ---------------------------------------------------------
+   COLOR ANALYSIS
+   Считаем покрытие каждого цвета и его положение по X
+   на маленьком уменьшенном снимке холста — так быстрее.
+--------------------------------------------------------- */
+const analysisSize = 80; // ширина/высота уменьшенной копии для анализа
+const analysisCanvas = document.createElement('canvas');
+analysisCanvas.width = analysisSize;
+analysisCanvas.height = analysisSize;
+const actx = analysisCanvas.getContext('2d', { willReadFrequently: true });
+
+function hexToRgb(hex){
+  const n = parseInt(hex.replace('#',''), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+TRACKS.forEach(t => t.rgb = hexToRgb(t.color));
+
+// находим ближайший цвет палитры к данному пикселю (устраняет сглаживание/сжатие)
+function nearestTrackIndex(r, g, b){
+  let bestIdx = -1, bestDist = Infinity;
+  for (let i = 0; i < TRACKS.length; i++) {
+    const c = TRACKS[i].rgb;
+    const d = (r - c.r) ** 2 + (g - c.g) ** 2 + (b - c.b) ** 2;
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  // если пиксель слишком далёк от всех цветов палитры — считаем, что это "бумага" (не закрашено)
+  return bestDist < 60 * 60 ? bestIdx : -1;
+}
+
+function analyzeCanvas(){
+  actx.clearRect(0, 0, analysisSize, analysisSize);
+  actx.drawImage(canvas, 0, 0, analysisSize, analysisSize);
+  const data = actx.getImageData(0, 0, analysisSize, analysisSize).data;
+
+  const counts = new Array(TRACKS.length).fill(0);
+  const xWeightSum = new Array(TRACKS.length).fill(0);
+  let totalPixels = 0;
+
+  for (let py = 0; py < analysisSize; py++) {
+    for (let px = 0; px < analysisSize; px++) {
+      const idx = (py * analysisSize + px) * 4;
+      const alpha = data[idx + 3];
+      totalPixels++;
+      if (alpha < 40) continue; // прозрачный/пустой пиксель — бумага, не в счёт
+
+      const trackIdx = nearestTrackIndex(data[idx], data[idx+1], data[idx+2]);
+      if (trackIdx === -1) continue;
+
+      counts[trackIdx]++;
+      // нормализуем X в диапазон -1 (левый край) .. +1 (правый край)
+      const normX = (px / (analysisSize - 1)) * 2 - 1;
+      xWeightSum[trackIdx] += normX;
+    }
+  }
+
+  return TRACKS.map((t, i) => {
+    const percent = counts[i] / totalPixels;
+    const pan = counts[i] > 0 ? xWeightSum[i] / counts[i] : 0;
+    return { percent, pan };
+  });
+}
+
+/* ---------------------------------------------------------
+   AUDIO ENGINE
+   Каждый трек — свой луп. Появляется цвет → трек стартует
+   тихо и с нуля. Растёт покрытие → растёт громкость и
+   двигается панорама. Цвет пропал → трек полностью стоп.
+--------------------------------------------------------- */
+let audioCtx = null;
+const audioState = TRACKS.map(() => ({
+  buffer: null,
+  source: null,
+  gainNode: null,
+  pannerNode: null,
+  playing: false
+}));
+
+async function loadBuffer(url){
+  const res = await fetch(url);
+  const arr = await res.arrayBuffer();
+  return audioCtx.decodeAudioData(arr);
+}
+
+async function initAudio(){
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  await Promise.all(TRACKS.map(async (t, i) => {
+    try {
+      audioState[i].buffer = await loadBuffer(t.file);
+    } catch (err) {
+      console.warn('Could not load track for', t.color, '— check the file path:', t.file, err);
+    }
+  }));
+}
+
+function startTrack(i){
+  const state = audioState[i];
+  if (!state.buffer || state.playing) return;
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = state.buffer;
+  source.loop = true;
+
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.value = 0.0001; // стартуем практически в тишине
+
+  const pannerNode = audioCtx.createStereoPanner();
+  pannerNode.pan.value = 0;
+
+  source.connect(gainNode);
+  gainNode.connect(pannerNode);
+  pannerNode.connect(audioCtx.destination);
+
+  source.start();
+
+  state.source = source;
+  state.gainNode = gainNode;
+  state.pannerNode = pannerNode;
+  state.playing = true;
+}
+
+function stopTrack(i){
+  const state = audioState[i];
+  if (!state.playing) return;
+
+  const now = audioCtx.currentTime;
+  // короткий плавный спад, чтобы не щёлкнуло, затем стоп
+  state.gainNode.gain.cancelScheduledValues(now);
+  state.gainNode.gain.setTargetAtTime(0.0001, now, 0.08);
+
+  const sourceToStop = state.source;
+  setTimeout(() => {
+    try { sourceToStop.stop(); } catch(e) {}
+  }, 250);
+
+  state.playing = false;
+  state.source = null;
+  state.gainNode = null;
+  state.pannerNode = null;
+}
+
+function updateAudioFromAnalysis(analysis){
+  analysis.forEach((a, i) => {
+    const track = TRACKS[i];
+    const state = audioState[i];
+
+    if (a.percent <= 0.0005) {
+      if (state.playing) stopTrack(i);
+      return;
+    }
+
+    if (!state.playing) startTrack(i);
+    if (!state.playing) return; // буфер ещё не загрузился
+
+    const targetVolume = track.maxVolume * Math.min(a.percent / VOLUME_FULL_AT_PERCENT, 1);
+    const now = audioCtx.currentTime;
+
+    state.gainNode.gain.setTargetAtTime(Math.max(targetVolume, 0.0001), now, SMOOTHING_TIME);
+    state.pannerNode.pan.setTargetAtTime(a.pan, now, SMOOTHING_TIME);
+  });
+}
+
+/* ---------------------------------------------------------
+   MAIN LOOP
+   Анализируем холст и обновляем звук ~8 раз в секунду —
+   этого достаточно и не грузит браузер.
+--------------------------------------------------------- */
+let analysisTimer = null;
+function startAnalysisLoop(){
+  analysisTimer = setInterval(() => {
+    const analysis = analyzeCanvas();
+    updateAudioFromAnalysis(analysis);
+  }, 120);
+}
+
+/* ---------------------------------------------------------
+   START OVERLAY
+--------------------------------------------------------- */
+document.getElementById('start-btn').addEventListener('click', async () => {
+  const overlay = document.getElementById('start-overlay');
+  overlay.querySelector('button').textContent = 'Loading…';
+  await initAudio();
+  overlay.remove();
+  startAnalysisLoop();
+});
+</script>
+
+</body>
+</html>
