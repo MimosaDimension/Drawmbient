@@ -147,6 +147,7 @@
     height:11px;
     border-radius:50%;
   }
+
   .palette-name{
     font-family:"Fraunces",serif;
     font-size:15px;
@@ -156,6 +157,7 @@
     color:var(--ink-dim);
     margin-top:-6px;
   }
+
   #confirm-bar{
     position:absolute;
     left:0; right:0; bottom:0;
@@ -166,7 +168,8 @@
     padding:16px;
     background:linear-gradient(to top, var(--bg-dark) 60%, transparent);
   }
-  /* ---------- screen: canvas ---------- */
+
+/* ---------- screen: canvas ---------- */
   #screen-canvas{height:100%;}
   #canvas-topbar{
     flex:0 0 auto;
@@ -271,7 +274,6 @@
     border:2px solid transparent;
   }
   #color-popover .dot.active{border-color:var(--ink);}
-
   #clear-btn{
     font-size:12.5px;
     color:var(--ink-dim);
@@ -282,10 +284,47 @@
     cursor:pointer;
   }
   #clear-btn:hover{color:var(--ink);border-color:var(--ink-dim);}
-
   @media (max-width:520px){
     footer{gap:12px;padding:10px 10px 14px;}
     #size-range{width:64px;}
+  }
+  #loading-overlay{
+    position:fixed;
+    inset:0;
+    background:var(--bg-dark);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+  }
+  #loading-overlay.visible{display:flex;}
+  .loading-box{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+  }
+  #loading-text{
+    font-family:"Fraunces",serif;
+    font-size:17px;
+    color:var(--ink);
+    letter-spacing:0.02em;
+    min-width:90px;
+    text-align:center;
+  }
+  #loading-bar-track{
+    width:160px;
+    height:3px;
+    border-radius:100px;
+    background:var(--line);
+    overflow:hidden;
+  }
+  #loading-bar-fill{
+    height:100%;
+    width:0%;
+    background:var(--accent);
+    border-radius:100px;
+    transition:width 0.25s ease;
   }
 </style>
 </head>
@@ -343,6 +382,12 @@
       </div>
       <button id="clear-btn">Clear canvas</button>
     </footer>
+  </div>
+</div>
+<div id="loading-overlay">
+  <div class="loading-box">
+    <span id="loading-text">Loading</span>
+    <div id="loading-bar-track"><div id="loading-bar-fill"></div></div>
   </div>
 </div>
 <script>
@@ -430,10 +475,8 @@ const PALETTES = [
     colors: buildPaletteColors('ash', buildHueSweep(30, 30, 8))
   }
 ];
-
 let selectedPalette = null;   // palette selected (but not yet confirmed)
 let ACTIVE_TRACKS = [];       // colours+tracks of the palette active on the canvas
-
 /* ===========================================================
    SCREEN SWITCHING
 =========================================================== */
@@ -441,15 +484,12 @@ function showScreen(id){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-
 document.getElementById('start-draw-btn').addEventListener('click', () => {
   showScreen('screen-palette');
 });
-
 document.getElementById('palette-back-btn').addEventListener('click', () => {
   showScreen('screen-start');
 });
-
 /* ===========================================================
    RENDER PALETTE CARDS
 =========================================================== */
@@ -476,6 +516,7 @@ PALETTES.forEach(p => {
   card.appendChild(name);
   card.appendChild(note);
   paletteList.appendChild(card);
+
   card.addEventListener('click', () => {
     selectedPalette = p;
     document.querySelectorAll('.palette-card').forEach(c => c.classList.remove('selected'));
@@ -483,10 +524,12 @@ PALETTES.forEach(p => {
     document.getElementById('confirm-btn').disabled = false;
   });
 });
+
 document.getElementById('confirm-btn').addEventListener('click', () => {
   if (!selectedPalette) return;
   enterCanvasScreen(selectedPalette);
 });
+
 /* ===========================================================
    CANVAS SETUP
 =========================================================== */
@@ -604,7 +647,6 @@ document.addEventListener('click', (e) => {
     colorPopover.classList.remove('open');
   }
 });
-
 function buildColorPopover(){
   colorPopover.innerHTML = '';
   ACTIVE_TRACKS.forEach((t, i) => {
@@ -690,13 +732,21 @@ async function ensureAudioReady(){
   if (audioCtx.state === 'suspended') {
     await audioCtx.resume();
   }
-  await Promise.all(ACTIVE_TRACKS.map(async (t, i) => {
-    if (!t.file) return; // placeholder colour, no sound
-    if (t.buffer) return; // already loaded before (cached)
+  const toLoad = ACTIVE_TRACKS.filter(t => t.file && !t.buffer);
+  if (toLoad.length === 0) {
+    setLoadingProgress(1);
+    return;
+  }
+  let loadedCount = 0;
+  setLoadingProgress(0);
+  await Promise.all(toLoad.map(async (t) => {
     try {
       t.buffer = await loadBuffer(t.file);
     } catch (err) {
       console.warn('Could not load track for', t.color, t.file, err);
+    } finally {
+      loadedCount++;
+      setLoadingProgress(loadedCount / toLoad.length);
     }
   }));
 }
@@ -765,12 +815,35 @@ function stopAnalysisLoop(){
   if (analysisTimer) { clearInterval(analysisTimer); analysisTimer = null; }
 }
 /* ===========================================================
+   LOADING OVERLAY
+=========================================================== */
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingText = document.getElementById('loading-text');
+const loadingBarFill = document.getElementById('loading-bar-fill');
+let loadingDotsTimer = null;
+function setLoadingProgress(fraction){
+  loadingBarFill.style.width = Math.round(fraction * 100) + '%';
+}
+function showLoading(){
+  loadingOverlay.classList.add('visible');
+  setLoadingProgress(0);
+  let dots = 0;
+  loadingDotsTimer = setInterval(() => {
+    dots = (dots % 3) + 1;
+    loadingText.textContent = 'Loading' + '.'.repeat(dots);
+  }, 400);
+}
+function hideLoading(){
+  loadingOverlay.classList.remove('visible');
+  if (loadingDotsTimer) { clearInterval(loadingDotsTimer); loadingDotsTimer = null; }
+  loadingText.textContent = 'Loading';
+}
+/* ===========================================================
    ENTER / LEAVE CANVAS SCREEN
 =========================================================== */
 async function enterCanvasScreen(palette){
   ACTIVE_TRACKS = palette.colors.map(c => ({ ...c, rgb: hexToRgb(c.color) }));
   audioState = ACTIVE_TRACKS.map(() => ({ source: null, gainNode: null, pannerNode: null, playing: false }));
-
   currentColor = ACTIVE_TRACKS[0].color;
   setTool('brush');
   currentColorBtn.style.background = currentColor;
@@ -778,15 +851,18 @@ async function enterCanvasScreen(palette){
   document.getElementById('canvas-palette-label').textContent = palette.name;
 
   showScreen('screen-canvas');
+  showLoading();
   resizeCanvas();
   buildColorPopover();
 
   // clicking Confirm is already a user gesture, so audio can be initialised right away
   await ensureAudioReady();
+  hideLoading();
   startAnalysisLoop();
 }
 
 document.getElementById('canvas-back-btn').addEventListener('click', () => {
+  hideLoading();
   stopAllTracks();
   stopAnalysisLoop();
   ctx.save();
