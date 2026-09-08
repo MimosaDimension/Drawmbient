@@ -156,7 +156,6 @@
     color:var(--ink-dim);
     margin-top:-6px;
   }
-
   #confirm-bar{
     position:absolute;
     left:0; right:0; bottom:0;
@@ -167,7 +166,6 @@
     padding:16px;
     background:linear-gradient(to top, var(--bg-dark) 60%, transparent);
   }
-
   /* ---------- screen: canvas ---------- */
   #screen-canvas{height:100%;}
   #canvas-topbar{
@@ -254,7 +252,7 @@
     position:absolute;
     bottom:calc(100% + 12px);
     left:50%;
-    transform:translateX(-50%);
+    transform:translateX(-75%);
     background:var(--bg-dark);
     border:1px solid var(--line);
     border-radius:14px;
@@ -273,6 +271,7 @@
     border:2px solid transparent;
   }
   #color-popover .dot.active{border-color:var(--ink);}
+
   #clear-btn{
     font-size:12.5px;
     color:var(--ink-dim);
@@ -283,6 +282,7 @@
     cursor:pointer;
   }
   #clear-btn:hover{color:var(--ink);border-color:var(--ink-dim);}
+
   @media (max-width:520px){
     footer{gap:12px;padding:10px 10px 14px;}
     #size-range{width:64px;}
@@ -290,8 +290,10 @@
 </style>
 </head>
 <body>
+
 <div id="app">
-  <!-- ============ SCREEN 1: START ============ -->
+
+<!-- ============ SCREEN 1: START ============ -->
   <div class="screen active" id="screen-start">
     <h1 class="brand">Drawmbient</h1>
     <p class="tagline">Paint with colour, listen to what grows. Choose a palette, draw, and the picture composes its own ambient music.</p>
@@ -331,31 +333,26 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 15l8-8 5 5-8 8H9l-3-3z"/><path d="M9 20H4"/></svg>
         </button>
       </div>
-
       <div class="control-group">
         <label for="size-range" style="font-size:12px;color:var(--ink-dim);">Size</label>
         <input type="range" id="size-range" min="4" max="70" value="26">
       </div>
-
       <div class="control-group" style="position:relative;">
         <button id="current-color-btn"></button>
         <div id="color-popover"></div>
       </div>
-
       <button id="clear-btn">Clear canvas</button>
     </footer>
   </div>
-
 </div>
-
 <script>
 /* ===========================================================
    PALETTES
-   Каждая палитра = 21 цвет (7 в ряд, 3 ряда).
-   file: путь к аудио-лупу. Если file = null — цвет пока
-   беззвучный (заглушка), просто для проверки интерфейса.
+   Each palette = 21 colours (7 per row, 3 rows).
+   file: path to the audio loop. If file = null, the colour
+   is silent for now (placeholder), just for testing the UI.
 =========================================================== */
-// вспомогательная функция: HSL -> HEX
+// helper function: HSL -> HEX
 function hsl(h, s, l){
   s /= 100; l /= 100;
   const k = n => (n + h / 30) % 12;
@@ -364,9 +361,9 @@ function hsl(h, s, l){
   const toHex = x => Math.round(255 * x).toString(16).padStart(2, '0');
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 }
-// генерирует 21 цвет: 7 оттенков в диапазоне [hueStart..hueEnd] x 3 яркости
+// generates 21 colours: 7 hues across [hueStart..hueEnd] x 3 lightness levels
 function buildHueSweep(hueStart, hueEnd, sat){
-  const lightness = [70, 52, 34]; // светлый / средний / тёмный ряд
+  const lightness = [70, 52, 34]; // light / mid / dark row
   const colors = [];
   lightness.forEach(l => {
     for (let i = 0; i < 7; i++) {
@@ -376,38 +373,67 @@ function buildHueSweep(hueStart, hueEnd, sat){
   });
   return colors;
 }
-// наши 4 реальных, уже озвученных цвета
-const REAL_COLORS = [
-  { color: '#3a6b63', file: 'audio/color1.mp3', maxVolume: 0.7 },
-  { color: '#b4744f', file: 'audio/color2.mp3', maxVolume: 0.7 },
-  { color: '#8a6bae', file: 'audio/color3.mp3', maxVolume: 0.7 },
-  { color: '#c9a227', file: 'audio/color4.mp3', maxVolume: 0.7 }
-];
-// нейтральные заглушки для оставшихся 17 слотов палитры "Origins"
-const NEUTRAL_FILLERS = buildHueSweep(40, 40, 7).slice(0, 17)
-  .map(hex => ({ color: hex, file: null, maxVolume: 0.7 }));
+// our 4 real, already-scored colours (first row of the Origins palette)
+const ORIGINS_REAL_HEXES = ['#3a6b63', '#b4744f', '#8a6bae', '#c9a227'];
+// neutral shades for the remaining 17 slots of the Origins palette
+const ORIGINS_NEUTRAL_HEXES = buildHueSweep(40, 40, 7).slice(0, 17);
+// builds a list of 21 colours for a palette, with a file path like
+// audio/<palette id>/color01.mp3 ... color21.mp3 (numbered left to right, top to bottom)
+function buildPaletteColors(paletteId, hexes){
+  return hexes.map((hex, i) => ({
+    color: hex,
+    file: `audio/${paletteId}/color${String(i + 1).padStart(2, '0')}.mp3`,
+    maxVolume: 0.7
+  }));
+}
 const PALETTES = [
   {
     id: 'origins',
     name: 'Origins',
-    note: 'live sound — 4 colours',
-    colors: [...REAL_COLORS, ...NEUTRAL_FILLERS]
+    note: 'where it began',
+    colors: buildPaletteColors('origins', [...ORIGINS_REAL_HEXES, ...ORIGINS_NEUTRAL_HEXES])
   },
   {
-    id: 'glacier',
-    name: 'Glacier',
-    note: 'preview — no sound yet',
-    colors: buildHueSweep(185, 230, 45).map(hex => ({ color: hex, file: null, maxVolume: 0.7 }))
+    id: 'rust',
+    name: 'Rust',
+    note: 'sun-worn, slow burn',
+    colors: buildPaletteColors('rust', buildHueSweep(10, 45, 55))
   },
   {
     id: 'moss',
     name: 'Moss',
-    note: 'preview — no sound yet',
-    colors: buildHueSweep(70, 140, 40).map(hex => ({ color: hex, file: null, maxVolume: 0.7 }))
+    note: 'damp earth, green hush',
+    colors: buildPaletteColors('moss', buildHueSweep(70, 140, 40))
+  },
+  {
+    id: 'tide',
+    name: 'Tide',
+    note: 'salt air, deep pull',
+    colors: buildPaletteColors('tide', buildHueSweep(150, 180, 50))
+  },
+  {
+    id: 'glacier',
+    name: 'Glacier',
+    note: 'cold light, slow drift',
+    colors: buildPaletteColors('glacier', buildHueSweep(185, 230, 45))
+  },
+  {
+    id: 'dusk',
+    name: 'Dusk',
+    note: 'violet hour, low hum',
+    colors: buildPaletteColors('dusk', buildHueSweep(260, 300, 35))
+  },
+  {
+    id: 'ash',
+    name: 'Ash',
+    note: 'quiet static, soft grey',
+    colors: buildPaletteColors('ash', buildHueSweep(30, 30, 8))
   }
 ];
-let selectedPalette = null;   // палитра, выбранная (но ещё не подтверждённая)
-let ACTIVE_TRACKS = [];       // цвета+треки активной палитры на холсте
+
+let selectedPalette = null;   // palette selected (but not yet confirmed)
+let ACTIVE_TRACKS = [];       // colours+tracks of the palette active on the canvas
+
 /* ===========================================================
    SCREEN SWITCHING
 =========================================================== */
@@ -415,12 +441,15 @@ function showScreen(id){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
+
 document.getElementById('start-draw-btn').addEventListener('click', () => {
   showScreen('screen-palette');
 });
+
 document.getElementById('palette-back-btn').addEventListener('click', () => {
   showScreen('screen-start');
 });
+
 /* ===========================================================
    RENDER PALETTE CARDS
 =========================================================== */
@@ -480,7 +509,6 @@ function resizeCanvas(){
   canvas.width = Math.round(rect.width * dpr);
   canvas.height = Math.round(rect.height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
   if (snapshot) {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -489,10 +517,8 @@ function resizeCanvas(){
     ctx.restore();
   }
 }
-
 window.addEventListener('resize', () => { if (document.getElementById('screen-canvas').classList.contains('active')) resizeCanvas(); });
 window.addEventListener('orientationchange', () => setTimeout(() => { if (document.getElementById('screen-canvas').classList.contains('active')) resizeCanvas(); }, 200));
-
 /* ===========================================================
    DRAWING
 =========================================================== */
@@ -501,7 +527,6 @@ let currentColor = '#000000';
 let brushSize = parseInt(document.getElementById('size-range').value, 10);
 let drawing = false;
 let lastX = 0, lastY = 0;
-
 function setTool(tool){
   currentTool = tool;
   document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
@@ -567,7 +592,7 @@ document.getElementById('clear-btn').addEventListener('click', () => {
   ctx.restore();
 });
 /* ===========================================================
-   BRUSH COLOR POPOVER (21 цвет активной палитры)
+   BRUSH COLOR POPOVER (21 colours of the active palette)
 =========================================================== */
 const currentColorBtn = document.getElementById('current-color-btn');
 const colorPopover = document.getElementById('color-popover');
@@ -579,6 +604,7 @@ document.addEventListener('click', (e) => {
     colorPopover.classList.remove('open');
   }
 });
+
 function buildColorPopover(){
   colorPopover.innerHTML = '';
   ACTIVE_TRACKS.forEach((t, i) => {
@@ -597,6 +623,7 @@ function buildColorPopover(){
     colorPopover.appendChild(dot);
   });
 }
+
 /* ===========================================================
    COLOR ANALYSIS
 =========================================================== */
@@ -631,23 +658,19 @@ function analyzeCanvas(){
       const alpha = data[idx + 3];
       totalPixels++;
       if (alpha < 40) continue;
-
       const trackIdx = nearestTrackIndex(data[idx], data[idx+1], data[idx+2]);
       if (trackIdx === -1) continue;
-
       counts[trackIdx]++;
       const normX = (px / (analysisSize - 1)) * 2 - 1;
       xWeightSum[trackIdx] += normX;
     }
   }
-
   return ACTIVE_TRACKS.map((t, i) => {
     const percent = counts[i] / totalPixels;
     const pan = counts[i] > 0 ? xWeightSum[i] / counts[i] : 0;
     return { percent, pan };
   });
 }
-
 /* ===========================================================
    AUDIO ENGINE
 =========================================================== */
@@ -668,8 +691,8 @@ async function ensureAudioReady(){
     await audioCtx.resume();
   }
   await Promise.all(ACTIVE_TRACKS.map(async (t, i) => {
-    if (!t.file) return; // цвет-заглушка без звука
-    if (t.buffer) return; // уже загружен ранее (кэш)
+    if (!t.file) return; // placeholder colour, no sound
+    if (t.buffer) return; // already loaded before (cached)
     try {
       t.buffer = await loadBuffer(t.file);
     } catch (err) {
@@ -717,7 +740,7 @@ function updateAudioFromAnalysis(analysis){
   analysis.forEach((a, i) => {
     const track = ACTIVE_TRACKS[i];
     const state = audioState[i];
-    if (!track.file) return; // заглушка — звука нет и не будет
+    if (!track.buffer) return; // track not loaded yet / file missing — stay silent
     if (a.percent <= 0.0005) {
       if (state.playing) stopTrack(i);
       return;
@@ -758,7 +781,7 @@ async function enterCanvasScreen(palette){
   resizeCanvas();
   buildColorPopover();
 
-  // клик по Confirm — уже пользовательский жест, можно сразу инициализировать звук
+  // clicking Confirm is already a user gesture, so audio can be initialised right away
   await ensureAudioReady();
   startAnalysisLoop();
 }
