@@ -187,7 +187,7 @@
     background:linear-gradient(to top, var(--bg-dark) 60%, transparent);
   }
 
-/* ---------- screen: canvas ---------- */
+  /* ---------- screen: canvas ---------- */
 
   #screen-canvas{height:100%;}
 
@@ -510,6 +510,7 @@ const PALETTES = [
     colors: buildPaletteColors('dusk', [
       '#cab7da', '#a0b2c5', '#c5b3a0', '#a09fc6', '#c6a09f', '#b39fc6', '#c69fb2',
       '#c79ec6', '#ad90c7', '#9168b4', '#885aaf', '#744b97', '#3a5374', '#745b3a',
+      '#3d3975', '#753d39', '#5b3876', '#763853', '#773773', '#56386f', '#382548'
     ])
   },
   {
@@ -926,6 +927,7 @@ function startAnalysisLoop(){
 function stopAnalysisLoop(){
   if (analysisTimer) { clearInterval(analysisTimer); analysisTimer = null; }
 }
+
 
 /* ===========================================================
    LOADING OVERLAY
